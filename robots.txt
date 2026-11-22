@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 Disallow: /tools/
-Sitemap: https://shafqmedia-art.github.io/siraj-app/sitemap.xml
+Sitemap: https://siraj-munir.example/sitemap.xml

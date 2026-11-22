@@ -9,7 +9,7 @@
   var LOGO_G = 'icons/logo-green.png', LOGO_W = 'icons/logo-white.png', MARK_G = 'icons/mark-green.png', MARK_W = 'icons/mark-white.png';
   var STATUS = { request: 'طلب جديد', approved: 'مقبول', visa: 'صدرت التأشيرة', travel: 'مسافر', done: 'أتمّ العمرة', cancelled: 'ملغى' };
   var STATUS_ORDER = ['request', 'approved', 'visa', 'travel', 'done'];
-  var STAFF_TITLES = ['مشرف', 'مرشد ديني', 'إداري', 'مصور', 'طبيب', 'سائق', 'منسّق'];
+  var STAFF_TITLES = ['شيخ العمرة', 'مدير عمليات', 'إداري', 'منسّق رحلات', 'مسؤول حجوزات', 'مسؤول وثائق وتأشيرات', 'محاسب', 'مصور', 'طبيب', 'سائق'];
   var CATS_IN = ['دفعة معتمر', 'دخل آخر'];
   var CATS_OUT = ['تأشيرات', 'فنادق', 'نقل وباصات', 'طعام', 'أجور الفريق', 'هدايا ومطبوعات', 'مصروف آخر'];
   var METHODS = { shamcash: 'شام كاش', cash: 'نقداً بالمكتب', transfer: 'حوالة', other: 'أخرى' };
@@ -378,8 +378,14 @@
   /* ---------- الصفحة العامة للزوار ---------- */
   var pub = { info: null, loading: false, tab: 'reviews', err: '' };
   function siteCfg() { return (pub.info && pub.info.site) || db.settings.public || {}; }
+  function bookingOpen(c) {
+    var date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Damascus', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    var parts = Object.fromEntries(date.map(function (p) { return [p.type, p.value]; }));
+    var todayInDamascus = parts.year + '-' + parts.month + '-' + parts.day;
+    return (!c.status || c.status === 'open') && (!c.start_date || c.start_date >= todayInDamascus) && (!c.deadline || c.deadline >= todayInDamascus);
+  }
   function localPublic() {
-    var openC = db.campaigns.filter(function (c) { return c.status === 'open' && (!c.start_date || c.start_date >= today()); }).map(function (c) { var n = campPil(c.id).length; return Object.assign({}, c, { seats_left: c.seats ? Math.max(0, num(c.seats) - n) : null }); });
+    var openC = db.campaigns.filter(function (c) { return bookingOpen(c); }).map(function (c) { var n = campPil(c.id).length; return Object.assign({}, c, { seats_left: c.seats ? Math.max(0, num(c.seats) - n) : null }); });
     var done = db.campaigns.filter(function (c) { return c.status === 'done' || (c.end_date && c.end_date < today()); }).map(function (c) { return { id: c.id, name: c.name, start_date: c.start_date, end_date: c.end_date, trip_type: c.trip_type, pilgrims: campPil(c.id).length }; });
     return { open: openC, done: done, site: db.settings.public || {}, office: db.settings.office || {} };
   }
@@ -455,7 +461,7 @@
   function privacyHtml() { var st = siteCfg(); return '<p class="privacy">' + tr('تُستخدم بياناتك (الاسم، رقم الهاتف، صورة الجواز) لإتمام الحجز والتأشيرة فقط، ولا تُشارك مع أي جهة أخرى.', 'Your data (name, phone, passport photo) is used only to complete your booking and visa, and is never shared.') + (st.privacy_email ? ' ' + tr('لطلب حذف بياناتك: ', 'To delete your data: ') + '<span dir="ltr">' + h(st.privacy_email) + '</span>' : '') + '</p>'; }
   function vLanding() {
     loadPublic();
-    var st = siteCfg(), o = pubOffice(), list = (pub.info && pub.info.open) || [];
+    var st = siteCfg(), o = pubOffice(), list = ((pub.info && pub.info.open) || []).filter(bookingOpen);
     var top = '<header class="ptop"><a href="#/" class="mbrand"><img src="' + MARK_G + '" class="lg-c" alt=""><b>' + tr('السراج المنير', 'Al-Siraj Al-Munir') + '</b></a><div class="grow"></div>' + btn(LANG === 'en' ? 'عربي' : 'EN', 'lang', {}, 'sm') + '<a class="btn sm plogin" href="#/login" aria-label="' + tr('دخول', 'Sign in') + '">' + ico('lock', 16) + '<span>' + tr('دخول', 'Sign in') + '</span></a>' + '</header>';
     var hero = '<section class="phero">' + (st.hero_video && /^https:\/\//.test(st.hero_video) ? '<video class="hvid" src="' + h(st.hero_video) + '" autoplay muted loop playsinline></video>' : '<div class="hrays"></div>') + '<div class="hin"><img src="' + LOGO_W + '" alt="السراج المنير للحج والعمرة" class="hlogo"><h1>' + h(st.headline || tr('رحلتك إلى بيت الله، بكل تفاصيلها', 'Your journey to the House of Allah, every step')) + '</h1><div class="acts center">' + link(tr('احجز الآن', 'Book now'), '#/register', 'gold') + link(tr('الرحلات القادمة', 'Upcoming trips'), '#trips', 'light') + '</div></div></section>';
     var out = top + hero + '<div class="pwrap">';
@@ -502,17 +508,36 @@
   /* ---------- الحجز (لنفسي، لعائلتي، أو إهداء) ---------- */
   var bk = { camp: '', mode: 'self', rows: [] };
   function readRows() { var r = []; Array.prototype.forEach.call(document.querySelectorAll('#bkRows .bkrow'), function (el) { r.push({ name: el.querySelector('[name=bn]').value, gender: el.querySelector('[name=bg]').value, birth_date: el.querySelector('[name=bb]').value, room_type: el.querySelector('[name=br]').value }); }); return r; }
+  function redrawBooking(change) {
+    var form = document.querySelector('form[data-form=book]');
+    var names = ['name', 'gender', 'birth_date', 'phone', 'pass', 'self_room', 'guarantor_name', 'guarantor_phone', 'agree'];
+    var fields = names.map(function (name) {
+      var field = form && form.elements.namedItem(name);
+      return field && [name, field.value, field.checked];
+    }).filter(Boolean);
+    if (form) bk.rows = readRows();
+    change();
+    render();
+    var next = document.querySelector('form[data-form=book]');
+    fields.forEach(function (entry) {
+      var field = next && next.elements.namedItem(entry[0]);
+      if (!field) return;
+      if (field.type === 'checkbox') field.checked = entry[2];
+      else field.value = entry[1];
+    });
+    bkTotal();
+  }
   function roomOpts(c, val) { var rp = roomPrices(c), ks = Object.keys(ROOMS).filter(function (k) { return rp[k] != null; }); if (!ks.length) return '<option value="">—</option>'; return ks.map(function (k) { return '<option value="' + k + '"' + (val === k ? ' selected' : '') + '>' + tr(ROOMS[k], ROOMS_EN[k]) + ' · ' + usd(rp[k]) + '</option>'; }).join(''); }
   function bkRow(c, r) {
     r = r || {};
-    return '<div class="bkrow"><div class="fld wide"><label>' + tr('الاسم الثلاثي', 'Full name') + '</label><input name="bn" maxlength="120" value="' + h(r.name || '') + '"></div><div class="fld"><label>' + tr('الجنس', 'Gender') + '</label><select name="bg"><option value="m">' + tr('ذكر', 'Male') + '</option><option value="f"' + (r.gender === 'f' ? ' selected' : '') + '>' + tr('أنثى', 'Female') + '</option></select></div><div class="fld"><label>' + tr('تاريخ الميلاد', 'Birth date') + '</label><input name="bb" type="date" value="' + h(r.birth_date || '') + '"></div><div class="fld"><label>' + tr('الغرفة', 'Room') + '</label><select name="br">' + roomOpts(c, r.room_type || fd.room) + '</select></div><div class="fld end">' + btn(ico('xx', 16) + ' ' + tr('حذف', 'Remove'), 'bkDel', {}, 'sm danger') + '</div></div>';
+    return '<div class="bkrow"><div class="fld wide"><label>' + tr('الاسم الثلاثي', 'Full name') + '</label><input aria-label="' + h(tr('الاسم الثلاثي', 'Full name')) + '" name="bn" maxlength="120" value="' + h(r.name || '') + '"></div><div class="fld"><label>' + tr('الجنس', 'Gender') + '</label><select aria-label="' + h(tr('الجنس', 'Gender')) + '" name="bg"><option value="m">' + tr('ذكر', 'Male') + '</option><option value="f"' + (r.gender === 'f' ? ' selected' : '') + '>' + tr('أنثى', 'Female') + '</option></select></div><div class="fld"><label>' + tr('تاريخ الميلاد', 'Birth date') + '</label><input aria-label="' + h(tr('تاريخ الميلاد', 'Birth date')) + '" name="bb" type="date" value="' + h(r.birth_date || '') + '"></div><div class="fld"><label>' + tr('الغرفة', 'Room') + '</label><select aria-label="' + h(tr('الغرفة', 'Room')) + '" name="br">' + roomOpts(c, r.room_type || fd.room) + '</select></div><div class="fld end">' + btn(ico('xx', 16) + ' ' + tr('حذف', 'Remove'), 'bkDel', {}, 'sm danger') + '</div></div>';
   }
   function bookCamp() { var l = (pub.info && pub.info.open) || []; return l.filter(function (x) { return x.id === bk.camp; })[0] || byId('campaigns', bk.camp); }
   function bookForm(withAccount) {
-    var c = bookCamp(); if (!c) return '<p class="err">' + tr('الرحلة غير موجودة.', 'Trip not found.') + '</p>';
+    var c = bookCamp(); if (c && !bookingOpen(c)) return '<p class="err">' + tr('انتهت مهلة الحجز لهذه الرحلة.', 'Booking has closed for this trip.') + '</p>'; if (!c) return '<p class="err">' + tr('الرحلة غير موجودة.', 'Trip not found.') + '</p>';
     var gift = bk.mode === 'gift', u = me();
     if (gift && !bk.rows.length) bk.rows = [{}];
-    var out = '<div class="bkhead"><b>' + h(c.name) + '</b><span>' + h(dateAr(c.start_date, true)) + '</span></div><form class="form" data-form="book">';
+    var out = '<div class="bkhead"><b>' + h(c.name) + '</b><span>' + h(dateAr(c.start_date, true)) + '</span></div><form class="form" data-form="book" novalidate>';
     if (withAccount) out += '<div class="fld wide sep"><h3>' + tr('حسابك', 'Your account') + '</h3><small class="mu">' + tr('تتابع من هذا الحساب الحجز والدفع والتأشيرة' + (gift ? '، وتصمّم بطاقة الإهداء' : ''), 'Use it to follow booking, payment and visa' + (gift ? ', and design the gift card' : '')) + '</small></div>' +
       '<div class="fld wide"><label for="r_name">' + tr('اسمك الثلاثي', 'Your full name') + '</label><input id="r_name" name="name" required maxlength="120"></div>' +
       '<div class="fld"><label for="r_gender">' + tr('الجنس', 'Gender') + '</label><select id="r_gender" name="gender"><option value="m">' + tr('ذكر', 'Male') + '</option><option value="f">' + tr('أنثى', 'Female') + '</option></select></div>' +
@@ -526,7 +551,7 @@
     out += '<div class="fld wide sep"><h3>' + tr('الكفيل (مقيم بالشام)', 'Guarantor (resident in Syria)') + '</h3></div><div class="fld"><label for="bk_gn">' + tr('اسم الكفيل', 'Guarantor name') + '</label><input id="bk_gn" name="guarantor_name" maxlength="120"></div><div class="fld"><label for="bk_gp">' + tr('رقم الكفيل', 'Guarantor phone') + '</label><input id="bk_gp" name="guarantor_phone" type="tel" dir="ltr" maxlength="30"></div>';
     out += '<div class="fld wide"><div class="bktotal" id="bkTotal"></div></div>';
     out += '<div class="fld wide"><label class="chk"><input type="checkbox" name="agree" required><span>' + tr('قرأت شروط الحجز وسياسة الخصوصية وأوافق عليها', 'I accept the booking terms and privacy policy') + '</span></label>' + privacyHtml() + '</div>';
-    out += '<div class="fld wide"><p class="err" id="aerr"></p><button class="btn pri big" type="submit">' + (gift ? '' + tr('احجز الإهداء', 'Book the gift') : '' + tr('إرسال طلب الحجز', 'Send booking request')) + '</button></div></form>';
+    out += '<div class="fld wide"><p class="err" id="aerr" role="alert"></p><button class="btn pri big" type="submit">' + (gift ? '' + tr('احجز الإهداء', 'Book the gift') : '' + tr('إرسال طلب الحجز', 'Send booking request')) + '</button></div></form>';
     return out;
   }
   function bkTotal() {
@@ -539,7 +564,7 @@
   }
   function vBookPage(withAccount) {
     var inner;
-    if (!bk.camp) { loadPublic(); inner = '<h1>' + (withAccount ? tr('سجّل واحجز عمرتك', 'Register & book your Umrah') : 'احجز رحلة') + '</h1>' + (pub.info ? tripsList(pub.info.open, 'bookPick') : '<p class="mu">' + tr('جارٍ التحميل…', 'Loading…') + '</p>'); }
+    if (!bk.camp) { loadPublic(); inner = '<h1>' + (withAccount ? tr('سجّل واحجز عمرتك', 'Register & book your Umrah') : 'احجز رحلة') + '</h1>' + (pub.info ? tripsList(pub.info.open.filter(bookingOpen), 'bookPick') : '<p class="mu">' + tr('جارٍ التحميل…', 'Loading…') + '</p>'); }
     else inner = '<h1>' + (bk.mode === 'gift' ? '' + tr('حجز إهداء', 'Gift booking') : tr('بيانات الحجز', 'Booking details')) + '</h1>' + bookForm(withAccount);
     inner += btn(tr('رجوع', 'Back'), 'bookBack', {}, 'link');
     if (withAccount) return '<div class="public"><header class="ptop"><a href="#/" class="mbrand"><img src="' + MARK_G + '" class="lg-c" alt=""><b>' + tr('السراج المنير', 'Al-Siraj Al-Munir') + '</b></a><div class="grow"></div>' + btn(LANG === 'en' ? 'عربي' : 'EN', 'lang', {}, 'sm') + link(tr('دخول', 'Sign in'), '#/login', 'sm') + '</header><div class="pwrap narrow">' + inner + '</div></div>';
@@ -558,20 +583,20 @@
   function wrapText(x, text, cx, y, maxW, lh) { var words = String(text).split(' '), line = '', lines = []; words.forEach(function (w) { var t = line ? line + ' ' + w : w; if (x.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; }); if (line) lines.push(line); lines.forEach(function (l, i) { x.fillText(l, cx, y + i * lh); }); return y + lines.length * lh; }
   function drawGift(cv, p) {
     var c = byId('campaigns', p.campaign_id) || {}, T = THEMES[gc.theme] || THEMES.green, x = cv.getContext('2d'), W = cv.width, H = cv.height;
-    var fonts = document.fonts ? Promise.all(['700 40px DIN', '400 40px DIN'].map(function (q) { return document.fonts.load(q).catch(function () {}); })) : Promise.resolve();
+    var fonts = document.fonts ? Promise.all(['700 40px Cairo', '400 40px Cairo'].map(function (q) { return document.fonts.load(q).catch(function () {}); })) : Promise.resolve();
     return fonts.then(function () { return loadImg(T[4]); }).then(function (logo) {
       var g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, T[0]); g.addColorStop(1, T[1]); x.fillStyle = g; x.fillRect(0, 0, W, H);
       x.save(); x.globalAlpha = .08; x.translate(W / 2, H * 0.32); for (var i = 0; i < 36; i++) { x.rotate(Math.PI / 18); x.fillStyle = T[3]; x.fillRect(0, -6, W, 12); } x.restore();
       x.strokeStyle = T[3]; x.lineWidth = 4; roundRect(x, 40, 40, W - 80, H - 80, 36); x.stroke(); x.lineWidth = 1.5; roundRect(x, 58, 58, W - 116, H - 116, 28); x.stroke();
       var lh = 300, lw = logo.width * lh / logo.height; x.drawImage(logo, (W - lw) / 2, 110, lw, lh);
-      x.textAlign = 'center'; x.direction = 'rtl'; x.fillStyle = T[3]; x.font = '700 40px DIN, sans-serif'; x.fillText('هدية عمرة', W / 2, 500);
-      x.fillStyle = T[2]; x.font = '400 40px DIN, sans-serif'; x.fillText('مُهداة إلى', W / 2, 580);
-      x.font = '700 78px DIN, sans-serif'; x.fillText(p.name, W / 2, 680);
+      x.textAlign = 'center'; x.direction = 'rtl'; x.fillStyle = T[3]; x.font = '700 40px Cairo, sans-serif'; x.fillText('هدية عمرة', W / 2, 500);
+      x.fillStyle = T[2]; x.font = '400 40px Cairo, sans-serif'; x.fillText('مُهداة إلى', W / 2, 580);
+      x.font = '700 78px Cairo, sans-serif'; x.fillText(p.name, W / 2, 680);
       x.fillStyle = T[3]; x.fillRect(W / 2 - 160, 712, 320, 4);
-      x.fillStyle = T[2]; x.font = '400 40px DIN, serif'; var y = wrapText(x, gc.msg || defGiftMsg(), W / 2, 800, W - 220, 66);
-      x.font = '400 34px DIN, sans-serif'; x.globalAlpha = .9; x.fillText('رحلة «' + (c.name || '') + '»' + (c.start_date ? ' · ' + dateAr(c.start_date, true) : ''), W / 2, Math.max(y + 40, 1040)); x.globalAlpha = 1;
-      x.fillStyle = T[3]; x.font = '700 40px DIN, sans-serif'; x.fillText('مع محبّة: ' + (gc.from || (me() || {}).name || ''), W / 2, H - 150);
-      x.fillStyle = T[2]; x.font = '400 26px DIN, sans-serif'; x.globalAlpha = .75; x.fillText('السراج المنير للحج والعمرة', W / 2, H - 92); x.globalAlpha = 1;
+      x.fillStyle = T[2]; x.font = '400 40px Cairo, serif'; var y = wrapText(x, gc.msg || defGiftMsg(), W / 2, 800, W - 220, 66);
+      x.font = '400 34px Cairo, sans-serif'; x.globalAlpha = .9; x.fillText('رحلة «' + (c.name || '') + '»' + (c.start_date ? ' · ' + dateAr(c.start_date, true) : ''), W / 2, Math.max(y + 40, 1040)); x.globalAlpha = 1;
+      x.fillStyle = T[3]; x.font = '700 40px Cairo, sans-serif'; x.fillText('مع محبّة: ' + (gc.from || (me() || {}).name || ''), W / 2, H - 150);
+      x.fillStyle = T[2]; x.font = '400 26px Cairo, sans-serif'; x.globalAlpha = .75; x.fillText('السراج المنير للحج والعمرة', W / 2, H - 92); x.globalAlpha = 1;
     });
   }
   function defGiftMsg() { return 'عمرة مقبولة إن شاء الله، تمّ حجز رحلتك إلى بيت الله الحرام مع حملة السراج المنير'; }
@@ -584,16 +609,16 @@
   }
   function drawDone(cv, p) {
     var c = byId('campaigns', p.campaign_id) || {}, x = cv.getContext('2d'), W = cv.width, H = cv.height, f = p.gender === 'f';
-    var fonts = document.fonts ? Promise.all(['700 40px DIN', '400 40px DIN'].map(function (q) { return document.fonts.load(q).catch(function () {}); })) : Promise.resolve();
+    var fonts = document.fonts ? Promise.all(['700 40px Cairo', '400 40px Cairo'].map(function (q) { return document.fonts.load(q).catch(function () {}); })) : Promise.resolve();
     return fonts.then(function () { return loadImg(LOGO_W); }).then(function (logo) {
       var g = x.createRadialGradient(W / 2, H * 0.35, 50, W / 2, H / 2, W * 0.8); g.addColorStop(0, '#0F6A45'); g.addColorStop(1, '#062519'); x.fillStyle = g; x.fillRect(0, 0, W, H);
       x.save(); x.globalAlpha = .07; x.translate(W / 2, H * 0.3); for (var i = 0; i < 36; i++) { x.rotate(Math.PI / 18); x.fillStyle = '#E0B05A'; x.fillRect(0, -5, W, 10); } x.restore();
       var lh = 260, lw = logo.width * lh / logo.height; x.drawImage(logo, (W - lw) / 2, 90, lw, lh);
-      x.textAlign = 'center'; x.direction = 'rtl'; x.fillStyle = '#E0B05A'; x.font = '700 92px DIN, sans-serif'; x.fillText('تمّت عمرتي ', W / 2, 500);
-      x.fillStyle = '#fff'; x.font = '700 58px DIN, sans-serif'; x.fillText(p.name, W / 2, 600);
-      x.fillStyle = '#CFE3D8'; x.font = '400 34px DIN, sans-serif'; x.fillText((c.name || 'السراج المنير') + ' · ' + dateAr(p.done_at || today(), true), W / 2, 665); x.fillText(hijri(p.done_at || today()), W / 2, 715);
-      x.fillStyle = '#F3E4C2'; x.font = '400 40px DIN, serif'; wrapText(x, 'اللَّهُمَّ اجْعَلْهَا عُمْرَةً مَبْرُورَةً، وَسَعْيًا مَشْكُورًا، وَذَنْبًا مَغْفُورًا', W / 2, 820, W - 200, 70);
-      x.fillStyle = '#E0B05A'; x.font = '400 30px DIN, sans-serif'; x.fillText((f ? 'لا تنسوني' : 'لا تنسوني') + ' من صالح دعائكم', W / 2, H - 100);
+      x.textAlign = 'center'; x.direction = 'rtl'; x.fillStyle = '#E0B05A'; x.font = '700 92px Cairo, sans-serif'; x.fillText('تمّت عمرتي ', W / 2, 500);
+      x.fillStyle = '#fff'; x.font = '700 58px Cairo, sans-serif'; x.fillText(p.name, W / 2, 600);
+      x.fillStyle = '#CFE3D8'; x.font = '400 34px Cairo, sans-serif'; x.fillText((c.name || 'السراج المنير') + ' · ' + dateAr(p.done_at || today(), true), W / 2, 665); x.fillText(hijri(p.done_at || today()), W / 2, 715);
+      x.fillStyle = '#F3E4C2'; x.font = '400 40px Cairo, serif'; wrapText(x, 'اللَّهُمَّ اجْعَلْهَا عُمْرَةً مَبْرُورَةً، وَسَعْيًا مَشْكُورًا، وَذَنْبًا مَغْفُورًا', W / 2, 820, W - 200, 70);
+      x.fillStyle = '#E0B05A'; x.font = '400 30px Cairo, sans-serif'; x.fillText((f ? 'لا تنسوني' : 'لا تنسوني') + ' من صالح دعائكم', W / 2, H - 100);
     });
   }
   function vDoneCard() {
@@ -785,9 +810,18 @@
   function busGroups(cp) { var g = {}; cp.forEach(function (p) { var b = p.bus || 'بدون باص'; (g[b] = g[b] || []).push(p); }); return g; }
   var roll = {};
   try { roll = JSON.parse(localStorage.getItem('siraj_roll') || '{}'); } catch (e) { roll = {}; }
+  var seatDraft = null;
   function campBuses(c, cp) {
     var g = busGroups(cp), mgr = isMgr(), keys = Object.keys(g).sort(function (a, b) { return a === 'بدون باص' ? 1 : b === 'بدون باص' ? -1 : num(a) - num(b); });
-    var out = '<div class="bar"><p class="mu">يُحفظ التفقّد على هذا الجهاز فقط. اضغط على الاسم لتسجيل الحضور.</p><div class="acts">' + (mgr ? btn('توزيع تلقائي على الباصات', 'autoBus', { id: c.id }) : '') + btn('إعادة التفقّد', 'rollReset', { id: c.id }) + '</div></div>';
+    var out = '<div class="bar"><p class="mu">يُحفظ التفقّد على هذا الجهاز فقط. اضغط على الاسم لتسجيل الحضور.</p><div class="acts">' + (mgr ? btn('قرعة توزيع المقاعد', 'autoBus', { id: c.id }) : '') + btn('إعادة التفقّد', 'rollReset', { id: c.id }) + '</div></div>';
+    if (mgr && seatDraft && seatDraft.campaign === c.id) {
+      var draft = seatDraft.plan;
+      out += '<section class="card"><h2>مسودة توزيع المقاعد</h2><p>' + draft.assignments.length + ' مقعد مخصّص · ' + draft.pending.reduce(function (n, group) { return n + group.length; }, 0) + ' بدون مقعد</p>';
+      out += '<div class="rows">' + draft.assignments.map(function (a) {
+        return '<div><span>' + h((byId('pilgrims', a.id) || {}).name) + '</span><span>الباص ' + h(a.bus) + ' · المقعد ' + h(a.seat) + '</span></div>';
+      }).join('') + draft.pending.map(function (group) { return '<div><span>' + group.map(function (p) { return h(p.name); }).join('، ') + '</span><span>بحاجة إلى مراجعة</span></div>'; }).join('') + '</div>';
+      out += '<div class="acts">' + (draft.assignments.length ? btn('اعتماد المسودة', 'approveSeats', { id: c.id }, 'pri') : '') + btn('إلغاء المسودة', 'discardSeats', {}) + '</div></section>';
+    }
     if (!cp.length) return out + emptyBox('لا يوجد معتمرون بعد.');
     return out + '<div class="buses">' + keys.map(function (k) {
       var l = g[k].slice().sort(function (a, b) { return num(a.seat) - num(b.seat); }), sup = (l.filter(function (p) { return p.bus_sup; })[0] || {}).bus_sup, drv = (l.filter(function (p) { return p.driver; })[0] || {}).driver;
@@ -1041,11 +1075,11 @@
     }).join('') + '</div>';
   }
   function staffUserForm(u) {
-    var n = !u; u = u || { gender: 'm', title: 'مشرف' };
+    var n = !u; u = u || { gender: 'm', title: 'شيخ العمرة' };
     openForm(n ? 'عضو فريق جديد' : 'تعديل العضو', [
-      { k: 'name', label: 'الاسم', value: u.name, req: true, max: 120 }, { k: 'title', label: 'الصفة', value: u.title, list: STAFF_TITLES, max: 60 },
+      { k: 'name', label: 'الاسم', value: u.name, req: true, max: 120 }, { k: 'title', label: 'الصفة', type: 'select', value: u.title, options: STAFF_TITLES.concat(u.title && !STAFF_TITLES.includes(u.title) ? [u.title] : []).map(function (title) { return [title, title]; }) },
       { k: 'phone', label: 'رقم الموبايل (للدخول)', type: 'tel', value: u.phone, req: true, max: 30 }, { k: 'gender', label: 'الجنس', type: 'select', options: [['m', 'ذكر'], ['f', 'أنثى']], value: u.gender }
-    ].concat(n ? [{ k: 'pass', label: 'كلمة السر (8 أحرف على الأقل)', type: 'text', req: true, max: 72 }] : []), function (v) {
+    ].concat(n ? [{ k: 'pass', label: 'كلمة السر (8 أحرف على الأقل)', type: 'password', req: true, max: 72 }] : []), function (v) {
       var ph = normPhone(v.phone); if (ph.length < 8) return { err: 'رقم غير صحيح.' };
       if (db.users.some(function (x) { return x.id !== u.id && normPhone(x.login_phone || x.phone) === ph; })) return { err: 'هذا الرقم مسجّل لحساب آخر.' };
       if (!n) { u.name = v.name.trim(); u.title = v.title.trim(); u.phone = v.phone.trim(); u.gender = v.gender; return 'حُفظ'; }
@@ -1258,16 +1292,18 @@
   }
 
   /* ---------- شهادة إتمام العمرة ---------- */
+  var certificateDedication = new Map();
   function vCert() {
     var p = curPil();
     if (!p || p.status !== 'done') return back('#/', 'الرئيسية') + head('شهادة العمرة', '') + emptyBox('تظهر الشهادة بعد إتمام عمرتك من المطوّف أو اعتمادها من الإدارة.', link('افتح المطوّف', '#/mutawwif', 'pri'));
-    return back('#/', 'الرئيسية') + head('شهادة إتمام العمرة', 'مبارك، تقبّل الله منك') + '<div class="certwrap"><canvas id="certcv" width="1600" height="1130" data-id="' + h(p.id) + '"></canvas></div><div class="acts center">' + btn('تنزيل الشهادة', 'certDownload', {}, 'gold big') + link('بطاقة «تمّت عمرتي» للمشاركة', '#/done', 'pri big') + '</div>';
+    return back('#/', 'الرئيسية') + head('شهادة إتمام العمرة', 'مبارك، تقبّل الله منك') + '<form class="form one" data-form="certificate"><div class="fld"><label for="cert-dedication">عمرة عن روح شخص (اختياري)</label><input name="dedication" id="cert-dedication" maxlength="100" value="' + h(certificateDedication.get(p.id) || '') + '"></div><button type="submit" class="btn">حدّث المعاينة</button></form><div class="certwrap"><canvas id="certcv" width="1600" height="1130" data-id="' + h(p.id) + '"></canvas></div><div class="acts center">' + btn('تنزيل الشهادة', 'certDownload', {}, 'gold big') + link('بطاقة «تمّت عمرتي» للمشاركة', '#/done', 'pri big') + '</div>';
   }
   var imgCache = {};
   function loadImg(src) { if (imgCache[src]) return imgCache[src]; imgCache[src] = new Promise(function (res, rej) { var i = new Image(); i.onload = function () { res(i); }; i.onerror = rej; i.src = src; }); return imgCache[src]; }
   function drawCert(cv, p) {
+    var dedication = certificateDedication.get(p.id);
     var c = byId('campaigns', p.campaign_id) || {}, x = cv.getContext('2d'), W = cv.width, H = cv.height, f = p.gender === 'f';
-    var fonts = document.fonts ? Promise.all(['700 40px DIN', '400 40px DIN', '300 40px DIN'].map(function (q) { return document.fonts.load(q).catch(function () {}); })) : Promise.resolve();
+    var fonts = document.fonts ? Promise.all(['700 40px Cairo', '400 40px Cairo', '300 40px Cairo'].map(function (q) { return document.fonts.load(q).catch(function () {}); })) : Promise.resolve();
     return fonts.then(function () { return loadImg(LOGO_G); }).then(function (logo) {
       x.fillStyle = '#FBF8F0'; x.fillRect(0, 0, W, H);
       var g = x.createRadialGradient(W / 2, H / 2, 100, W / 2, H / 2, W * 0.7); g.addColorStop(0, 'rgba(216,165,73,0)'); g.addColorStop(1, 'rgba(216,165,73,.10)'); x.fillStyle = g; x.fillRect(0, 0, W, H);
@@ -1277,15 +1313,19 @@
       [[76, 76, 1, 1], [W - 76, 76, -1, 1], [76, H - 76, 1, -1], [W - 76, H - 76, -1, -1]].forEach(function (k) { x.save(); x.translate(k[0], k[1]); x.scale(k[2], k[3]); x.fillStyle = '#D2A24C'; x.beginPath(); x.moveTo(0, 0); x.lineTo(90, 0); x.quadraticCurveTo(30, 30, 0, 90); x.closePath(); x.globalAlpha = .35; x.fill(); x.globalAlpha = 1; x.beginPath(); x.arc(22, 22, 8, 0, Math.PI * 2); x.fill(); x.restore(); });
       var lh = 250, lw = logo.width * lh / logo.height; x.drawImage(logo, (W - lw) / 2, 95, lw, lh);
       x.textAlign = 'center'; x.direction = 'rtl'; x.fillStyle = '#0C4A33';
-      x.font = '700 76px DIN, sans-serif'; x.fillText('شهادة إتمام عمرة', W / 2, 440);
-      x.fillStyle = '#4B5A53'; x.font = '400 36px DIN, sans-serif'; x.fillText('تشهد حملة السراج المنير للحج والعمرة بأنّ ' + (f ? 'الحاجّة' : 'الحاج'), W / 2, 520);
-      x.fillStyle = '#0B7A4B'; x.font = '700 68px DIN, sans-serif'; x.fillText(p.name, W / 2, 615);
-      x.fillStyle = '#D2A24C'; x.fillRect(W / 2 - 220, 640, 440, 4);
-      x.fillStyle = '#4B5A53'; x.font = '400 36px DIN, sans-serif'; x.fillText((f ? 'قد أتمّت' : 'قد أتمّ') + ' مناسك العمرة بفضل الله تعالى وتوفيقه', W / 2, 705);
+      x.font = '700 76px Cairo, sans-serif'; x.fillText('شهادة إتمام عمرة', W / 2, 440);
+      x.fillStyle = '#4B5A53'; x.font = '400 36px Cairo, sans-serif'; x.fillText('تشهد حملة السراج المنير للحج والعمرة بأنّ ' + (f ? 'الحاجّة' : 'الحاج'), W / 2, 520);
+      x.fillStyle = '#0B7A4B'; x.font = '700 68px Cairo, sans-serif'; x.fillText(p.name, W / 2, 615);
+      x.fillStyle = '#C9963C'; x.fillRect(W / 2 - 220, 640, 440, 4);
+      if (dedication) {
+        x.fillStyle = '#0C4A33'; x.font = '700 44px Cairo, sans-serif';
+        x.fillText('عن روح ' + dedication, W / 2, 765, W - 260);
+      }
+      x.fillStyle = '#4B5A53'; x.font = '400 36px Cairo, sans-serif'; x.fillText((f ? 'قد أتمّت' : 'قد أتمّ') + ' مناسك العمرة بفضل الله تعالى وتوفيقه', W / 2, 705);
       x.fillText('ضمن رحلة «' + (c.name || 'السراج المنير') + '»', W / 2, 760);
-      var d = p.done_at || today(); x.font = '300 32px DIN, sans-serif'; x.fillText(dateAr(d, true) + '  ·  ' + hijri(d), W / 2, 820);
-      x.fillStyle = '#0C4A33'; x.font = '400 40px DIN, serif'; x.fillText('اللَّهُمَّ اجْعَلْهَا عُمْرَةً مَبْرُورَةً، وَسَعْيًا مَشْكُورًا، وَذَنْبًا مَغْفُورًا', W / 2, 905);
-      x.font = '400 28px DIN, sans-serif'; x.fillStyle = '#6F8178'; x.fillText('إدارة حملة السراج المنير للحج والعمرة', W / 2 + 430, 1010); x.fillText('تقبّل الله منّا ومنكم', W / 2 - 430, 1010);
+      var d = p.done_at || today(); x.font = '300 32px Cairo, sans-serif'; x.fillText(dateAr(d, true) + '  ·  ' + hijri(d), W / 2, 820);
+      x.fillStyle = '#0C4A33'; x.font = '400 40px Cairo, serif'; x.fillText('اللَّهُمَّ اجْعَلْهَا عُمْرَةً مَبْرُورَةً، وَسَعْيًا مَشْكُورًا، وَذَنْبًا مَغْفُورًا', W / 2, 905);
+      x.font = '400 28px Cairo, sans-serif'; x.fillStyle = '#6F8178'; x.fillText('إدارة حملة السراج المنير للحج والعمرة', W / 2 + 430, 1010); x.fillText('تقبّل الله منّا ومنكم', W / 2 - 430, 1010);
       x.strokeStyle = '#B9AE90'; x.lineWidth = 2; x.beginPath(); x.moveTo(W / 2 + 290, 970); x.lineTo(W / 2 + 570, 970); x.stroke();
     });
   }
@@ -1349,7 +1389,7 @@
   var acts = {
     close: closeForm,
     theme: function () { var dk = document.body.classList.toggle('t-dark'); document.body.classList.toggle('t-light', !dk); localStorage.setItem(TKEY, dk ? 'dark' : 'light'); render(); },
-    logout: function () { locStop(true); if (ONLINE) { SRV.idle().then(pushOff).then(function () { return SRV.signOut(); }).then(function () { db = blank(); location.hash = '#/'; checkSetup(); }); return; } localStorage.removeItem(SKEY); location.hash = '#/'; render(); },
+    logout: function () { certificateDedication.clear(); seatDraft = null; locStop(true); if (ONLINE) { SRV.idle().then(pushOff).then(function () { return SRV.signOut(); }).then(function () { db = blank(); location.hash = '#/'; checkSetup(); }); return; } localStorage.removeItem(SKEY); location.hash = '#/'; render(); },
     retry: function () { boot(); },
     forgotOpen: function () { fstate = { open: true, sent: false, phone: (document.getElementById('l_phone') || {}).value || '', wa: '' }; render(); },
     forgotClose: function () { fstate.open = false; fstate.sent = false; render(); },
@@ -1372,7 +1412,7 @@
     addStaff: function (d) {
       var c = byId('campaigns', d.id), team = db.users.filter(function (u) { return u.role === 'staff' && u.active !== false; });
       if (!team.length) { toast('أضف أعضاء من صفحة الفريق أولاً'); location.hash = '#/team'; return; }
-      openForm('إضافة للرحلة', [{ k: 'user', label: 'العضو', type: 'select', options: team.map(function (u) { return [u.id, u.name + (u.title ? ' · ' + u.title : '')]; }) }, { k: 'role', label: 'دوره بالرحلة', list: STAFF_TITLES, value: 'مشرف', max: 60 }], function (v) {
+      openForm('إضافة للرحلة', [{ k: 'user', label: 'العضو', type: 'select', options: team.map(function (u) { return [u.id, u.name + (u.title ? ' · ' + u.title : '')]; }) }, { k: 'role', label: 'دوره بالرحلة', type: 'select', value: 'شيخ العمرة', options: STAFF_TITLES.map(function (title) { return [title, title]; }) }], function (v) {
         c.staff = (c.staff || []).filter(function (s) { return s.user !== v.user; }).concat([{ user: v.user, role: v.role.trim() }]); return 'أُضيف للرحلة';
       });
     },
@@ -1381,19 +1421,29 @@
     rollReset: function (d) { Object.keys(roll).forEach(function (k) { if (k.indexOf(d.id + ':') === 0) delete roll[k]; }); try { localStorage.setItem('siraj_roll', JSON.stringify(roll)); } catch (e) {} render(); },
     autoBus: function (d) {
       var c = byId('campaigns', d.id);
-      openForm('توزيع تلقائي على الباصات', [{ k: 'cap', label: 'عدد المقاعد بالباص', type: 'number', value: 49 }, { k: 'mode', label: 'من يُوزَّع؟', type: 'select', options: [['empty', 'من ليس لديهم حافلة فقط'], ['all', 'الكل من جديد']] }], function (v) {
-        var cap = Math.max(1, Math.round(num(v.cap))), cp = campPil(c.id), taken = {};
-        if (v.mode === 'empty') cp.forEach(function (p) { if (p.bus) { taken[p.bus] = taken[p.bus] || {}; taken[p.bus][p.seat] = 1; } });
-        var list = cp.filter(function (p) { return v.mode === 'all' || !p.bus; });
-        // المعتمرة جنب محرمها
-        var ordered = []; list.forEach(function (p) { if (ordered.indexOf(p) >= 0) return; if (p.mahram_id) { var m = list.filter(function (x) { return x.id === p.mahram_id; })[0]; if (m && ordered.indexOf(m) < 0) ordered.push(m); } ordered.push(p); list.forEach(function (x) { if (x.mahram_id === p.id && ordered.indexOf(x) < 0) ordered.push(x); }); });
-        var bus = 1, seat = 1;
-        ordered.forEach(function (p) {
-          while ((taken[String(bus)] || {})[String(seat)] || seat > cap) { seat++; if (seat > cap) { bus++; seat = 1; } }
-          p.bus = String(bus); p.seat = String(seat); taken[p.bus] = taken[p.bus] || {}; taken[p.bus][p.seat] = 1;
-        });
-        return 'وُزّع ' + ordered.length + ' معتمر';
-      }, null, 'توزيع');
+      if (!isMgr() || !c) return;
+      openForm('قرعة توزيع المقاعد', [
+        { k: 'cap', label: 'عدد المقاعد بكل باص', type: 'number', value: 50 },
+        { k: 'buses', label: 'عدد الباصات', type: 'number', value: 1 }
+      ], function (v) {
+        var people = campPil(c.id).filter(function (p) { return p.status !== 'request' || p.bus || p.seat; });
+        seatDraft = { campaign: c.id, plan: window.SIRAJ_SEATING(people, Number(v.cap), Number(v.buses)), capacity: Number(v.cap), buses: Number(v.buses) };
+        return { preview: true };
+      }, null, 'معاينة القرعة');
+    },
+    discardSeats: function () { seatDraft = null; render(); },
+    approveSeats: function (d, el) {
+      if (!isMgr() || !seatDraft || seatDraft.campaign !== d.id) return;
+      var draft = seatDraft;
+      el.disabled = true;
+      if (ONLINE) {
+        SRV.rpc('approve_bus_seats', { p_campaign: d.id, p_seats: draft.plan.assignments, p_capacity: draft.capacity, p_buses: draft.buses }).then(function () {
+          seatDraft = null; toast('اعتُمد توزيع المقاعد'); return resync();
+        }).catch(function (err) { el.disabled = false; toast(err.message); });
+        return;
+      }
+      draft.plan.assignments.forEach(function (a) { var p = byId('pilgrims', a.id); p.bus = a.bus; p.seat = a.seat; });
+      seatDraft = null; save(); render(); toast('اعتُمد توزيع المقاعد');
     },
     editBus: function (d) {
       var c = byId('campaigns', d.id), l = campPil(c.id).filter(function (p) { return p.bus === d.bus; }), f = l[0] || {};
@@ -1475,13 +1525,13 @@
     toggleUser: function (d) { var u = byId('users', d.id); u.active = u.active === false; save(); render(); },
     backup: function () { download(new Blob([JSON.stringify(db)], { type: 'application/json' }), 'siraj-backup-' + today() + '.json'); },
     // المعتمر
-    lang: function () { LANG = LANG === 'en' ? 'ar' : 'en'; try { localStorage.setItem('siraj.lang', LANG); } catch (e) {} render(); },
+    lang: function () { redrawBooking(function () { LANG = LANG === 'en' ? 'ar' : 'en'; try { localStorage.setItem('siraj.lang', LANG); } catch (e) {} }); var toggle = document.querySelector('[data-act=lang]'); if (toggle) toggle.focus({ preventScroll: true }); },
     fd: function (d) { fd[d.k] = d.k === 'stars' ? +d.v : d.v; render(); },
     fdPeople: function (d) { fd.people = Math.max(1, Math.min(12, fd.people + (+d.d))); render(); },
     fdClear: function () { fd = { type: '', month: '', budget: '', room: '', stars: 0, people: 1 }; render(); },
     bookPick: function (d) { bk.camp = d.id; bk.rows = []; for (var i = 1; i < fd.people; i++) bk.rows.push({ room_type: fd.room }); if (!me()) location.hash = '#/register'; else if (route() !== '#/book') location.hash = '#/book'; render(); window.scrollTo(0, 0); },
     bookBack: function () { if (bk.camp) { bk.camp = ''; render(); } else location.hash = me() ? '#/' : '#/'; },
-    bkMode: function (d) { bk.rows = readRows(); bk.mode = d.m === 'gift' ? 'gift' : 'self'; render(); },
+    bkMode: function (d) { redrawBooking(function () { bk.mode = d.m === 'gift' ? 'gift' : 'self'; }); },
     bkAdd: function () { var c = bookCamp(), box = document.getElementById('bkRows'); if (!c || !box) return; if (box.querySelectorAll('.bkrow').length >= 11) { toast('الحد الأقصى 12 شخصاً في الحجز'); return; } box.insertAdjacentHTML('beforeend', bkRow(c, {})); bkTotal(); },
     bkDel: function (d, el) { var r = el && el.closest('.bkrow'); if (r) r.remove(); bkTotal(); },
     giftStart: function () { bk.mode = 'gift'; bk.camp = ''; bk.rows = []; location.hash = me() ? '#/book' : '#/register'; render(); },
@@ -1510,7 +1560,7 @@
       });
     },
     certMine: function () { var p = myPilgrim(); if (!p) return; selPil = p.id; var go = function () { location.hash = '#/cert'; }; if (p.status === 'done') { go(); return; } if (ONLINE) SRV.rpc('finish_umrah', { p_pilgrim: p.id }).then(function () { return resync(); }).then(go, function (e) { toast(e.message); }); else { p.status = 'done'; p.done_at = today(); save(); go(); } notify([{ to: 'managers', title: 'أتمّ عمرته', body: p.name, tag: 'done-' + p.id }]); },
-    certDownload: function (d) { var cv = document.getElementById('certcv'); if (!cv) return; cv.toBlob(function (b) { download(b, 'شهادة-عمرة.png'); }, 'image/png'); },
+    certDownload: function (d) { var cv = document.getElementById('certcv'); if (!cv) return; var p = byId('pilgrims', d.id || cv.dataset.id); if (!p || p.status !== 'done') return; drawCert(cv, p).then(function () { cv.toBlob(function (b) { if (b) download(b, 'شهادة-عمرة.png'); }, 'image/png'); }).catch(function () { toast('تعذّر تجهيز الشهادة'); }); },
     // المطوّف والأدوات
     mutNext: function () { var s = mutGet(), k = C.STEPS[s.step].counter; s[k] = Math.min(7, s[k] + 1); mutSet(s); vib(s[k] === 7 ? [60, 60, 120] : 40); render(); window.scrollTo(0, 0); },
     mutPrev: function () { var s = mutGet(), k = C.STEPS[s.step].counter; s[k] = Math.max(0, s[k] - 1); mutSet(s); render(); },
@@ -1585,11 +1635,19 @@
   document.addEventListener('input', function (e) { if (e.target.closest && e.target.closest('form[data-form=book]')) bkTotal(); });
   document.addEventListener('submit', function (e) {
     var f = e.target, kind = f.getAttribute('data-form'); if (!kind) return; e.preventDefault(); var v = formVals(f); if (v.website) return; delete v.website;
+    if (kind === 'certificate') {
+      var owner = isPil() && curPil();
+      if (owner && owner.status === 'done') {
+        certificateDedication.set(owner.id, (v.dedication || '').trim().slice(0, 100));
+        render();
+      }
+      return;
+    }
     var sb = f.querySelector('button[type=submit]');
     function busy(on, txt) { if (sb) { sb.disabled = on; if (txt) { sb.dataset.t = sb.dataset.t || sb.textContent; sb.textContent = txt; } else if (sb.dataset.t) sb.textContent = sb.dataset.t; } }
     if (kind === 'modal' && formCb) {
       busy(true);
-      Promise.resolve().then(function () { return formCb(v, f); }).then(function (res) { busy(false); if (res && res.err) { document.getElementById('merr').textContent = res.err; return; } return save().then(function () { closeForm(); render(); if (typeof res === 'string') toast(res); }); }, function (x) { busy(false); var m = document.getElementById('merr'); if (m) m.textContent = x.message || 'حدث خطأ.'; });
+      Promise.resolve().then(function () { return formCb(v, f); }).then(function (res) { busy(false); if (res && res.err) { document.getElementById('merr').textContent = res.err; return; } return (res && res.preview ? Promise.resolve() : save()).then(function () { closeForm(); render(); if (typeof res === 'string') toast(res); }); }, function (x) { busy(false); var m = document.getElementById('merr'); if (m) m.textContent = x.message || 'حدث خطأ.'; });
     }
     if (kind === 'setup') {
       if (!ONLINE && db.users.length) return; var ph = normPhone(v.phone), er = document.getElementById('aerr');
@@ -1614,7 +1672,17 @@
     }
     if (kind === 'book') {
       var be = document.getElementById('aerr'), c = bookCamp(), gift = bk.mode === 'gift', rws = readRows(), people = [];
-      if (!c) return;
+      var invalid = Array.prototype.find.call(f.elements, function (el) { return el.willValidate && !el.validity.valid; });
+      if (invalid) {
+        var label = invalid.labels && invalid.labels[0];
+        var fieldName = label ? label.textContent.trim() : invalid.getAttribute('aria-label');
+        be.textContent = tr('راجع الحقل: ', 'Check this field: ') + (fieldName || '');
+        invalid.setAttribute('aria-invalid', 'true');
+        invalid.focus({ preventScroll: true });
+        invalid.scrollIntoView({ block: 'center' });
+        return;
+      }
+      if (!c || !bookingOpen(c)) { be.textContent = tr('الحجز مغلق.', 'Booking is closed.'); return; }
       if (!gift) people.push({ self: true, room_type: v.self_room || '' });
       for (var ri = 0; ri < rws.length; ri++) { var rr = rws[ri]; if (!rr.name.trim()) { be.textContent = tr('اكتب اسم كل شخص أو احذف السطر الفارغ.', 'Enter each person\'s name or remove the empty row.'); return; } people.push({ name: rr.name.trim(), gender: rr.gender, birth_date: rr.birth_date, room_type: rr.room_type, gift: gift }); }
       if (!people.length) { be.textContent = tr('أضف شخصاً واحداً على الأقل.', 'Add at least one person.'); return; }
@@ -1626,7 +1694,7 @@
       var fail = function (x) { busy(false); var y = document.getElementById('aerr'); if (y) y.textContent = x.message; };
       if (ONLINE && acc) { SRV.register({ website: '', name: v.name.trim(), gender: v.gender, birth_date: v.birth_date, phone: v.phone.trim(), pass: v.pass, campaign_id: c.id, people: people, guarantor_name: gName, guarantor_phone: gPhone }).then(function () { return SRV.signIn(v.phone, v.pass); }).then(function () { return SRV.pull(); }).then(function (d) { db = d; LANG = LANG; doneMsg(); }).catch(fail); return; }
       if (ONLINE) { SRV.rpc('book_trip', { p_campaign: c.id, p_people: people, p_guarantor_name: gName, p_guarantor_phone: gPhone }).then(function () { notify([{ to: 'managers', title: (gift ? 'حجز إهداء' : 'طلب عمرة جديد') + (people.length > 1 ? '· ' + people.length + ' أشخاص' : ''), body: me().name + ' · ' + c.name, tag: 'req', url: './#/pilgrims' }]); return resync(); }).then(doneMsg).catch(fail); return; }
-      var mk = function (u) { people.forEach(function (x) { db.pilgrims.push({ id: uid(), campaign_id: c.id, user_id: x.self ? u.id : '', booked_by: u.id, name: x.self ? u.name : x.name, gender: x.self ? u.gender : x.gender, birth_date: x.self ? (v.birth_date || '') : x.birth_date, phone: u.phone, room_type: x.room_type || '', guarantor_name: gName, guarantor_phone: gPhone, gift_from: x.gift ? u.name : '', status: 'request', docs: {} }); }); save(); doneMsg(); };
+      var mk = function (u) { var group = uid(); people.forEach(function (x) { db.pilgrims.push({ id: uid(), booking_group: group, campaign_id: c.id, user_id: x.self ? u.id : '', booked_by: u.id, name: x.self ? u.name : x.name, gender: x.self ? u.gender : x.gender, birth_date: x.self ? (v.birth_date || '') : x.birth_date, phone: u.phone, room_type: x.room_type || '', guarantor_name: gName, guarantor_phone: gPhone, gift_from: x.gift ? u.name : '', status: 'request', docs: {} }); }); save(); doneMsg(); };
       if (!acc) { mk(me()); return; }
       if (db.users.some(function (x) { return normPhone(x.login_phone || x.phone) === normPhone(v.phone); })) { busy(false); be.textContent = tr('هذا الرقم مسجّل مسبقاً. سجّل الدخول.', 'This number is already registered. Sign in.'); return; }
       var rs = uid(); hash(v.pass, rs).then(function (hh) { var nu = { id: uid(), name: v.name.trim(), phone: v.phone.trim(), login_phone: normPhone(v.phone), gender: v.gender, role: 'pilgrim', active: true, pass: hh, salt: rs, prefs: { prayer: { on: true, city: 'makkah', before: 15 } } }; db.users.push(nu); localStorage.setItem(SKEY, nu.id); mk(nu); });
