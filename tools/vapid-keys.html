@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>توليد مفاتيح الإشعارات</title>
+<style>body{font-family:Tahoma,sans-serif;max-width:640px;margin:30px auto;padding:0 16px;line-height:1.8;background:#F7F3E9;color:#13271E}button{font-size:18px;padding:10px 24px;border-radius:12px;border:0;background:#0B7A4B;color:#fff;cursor:pointer}textarea{width:100%;font-family:monospace;font-size:13px;padding:8px;border-radius:10px;border:1px solid #ccc;direction:ltr}b{color:#0C4A33}</style></head>
+<body><h1>مفاتيح إشعارات السراج المنير (VAPID)</h1>
+<p>افتح هالملف على جهازك واضغط الزر. المفاتيح بتتولّد على جهازك وما بتنبعت لأي مكان.</p>
+<button id="go">ولّد المفاتيح</button>
+<div id="out" hidden>
+<p><b>1) المفتاح العام</b>: حطّه بـ <code>config.js</code> مكان <code>pushKey</code>، وبـ Supabase ← Edge Functions ← Secrets باسم <code>VAPID_PUBLIC</code>:</p><textarea id="pub" rows="3" readonly></textarea>
+<p><b>2) المفتاح السري</b>: بـ Secrets بس، باسم <code>VAPID_PRIVATE</code>. لا تحطه بأي ملف ولا تبعته لحدا:</p><textarea id="priv" rows="2" readonly></textarea>
+</div>
+<script>
+document.getElementById('go').onclick=async()=>{
+  const k=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign']);
+  const raw=new Uint8Array(await crypto.subtle.exportKey('raw',k.publicKey)), jwk=await crypto.subtle.exportKey('jwk',k.privateKey);
+  const b64u=b=>btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  document.getElementById('pub').value=b64u(raw); document.getElementById('priv').value=jwk.d; document.getElementById('out').hidden=false;
+};
+</script></body></html>
