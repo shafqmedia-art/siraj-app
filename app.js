@@ -313,14 +313,19 @@
       ['الدليل', [['الدليل والأدوات', '#/guide', 'book'], ['المطوّف', '#/mutawwif', 'kaaba'], ['مواقيت الصلاة', '#/prayer', 'clock']]]
     ];
     if (isStaff()) return [['الرئيسية', [['حملاتي', '#/', 'home'], ['الخريطة', '#/map', 'map'], ['الرسائل', '#/messages', 'chat']]], ['الدليل', [['الدليل والأدوات', '#/guide', 'book'], ['المطوّف', '#/mutawwif', 'kaaba'], ['مواقيت الصلاة', '#/prayer', 'clock']]]];
-    return [['عمرتي', [['الرئيسية', '#/', 'home'], ['احجز رحلة', '#/book', 'kaaba'], ['حسابي والدفع', '#/pay', 'money'], ['برنامج الرحلة', '#/program', 'list'], ['اسأل الشيخ', '#/ask', 'chat'], ['بطاقة المعتمر', '#/card', 'card']]], ['الدليل', [['المطوّف', '#/mutawwif', 'kaaba'], ['مواقيت الصلاة', '#/prayer', 'clock'], ['الدليل والأدوات', '#/guide', 'book']]]];
+    return [['عمرتي', [['رحلتي', '#/', 'home'], ['العبادة', '#/worship', 'book'], ['المساعدة', '#/help', 'chat'], ['وثائقي', '#/docs', 'card'], ['احجز رحلة', '#/book', 'kaaba'], ['حسابي والدفع', '#/pay', 'money'], ['برنامج الرحلة', '#/program', 'list'], ['اسأل الشيخ', '#/ask', 'chat'], ['بطاقة المعتمر', '#/card', 'card']]], ['الدليل', [['المطوّف', '#/mutawwif', 'kaaba'], ['مواقيت الصلاة', '#/prayer', 'clock'], ['الدليل والأدوات', '#/guide', 'book']]]];
   }
   function tabsDef() {
     if (isMgr()) return [['الرئيسية', '#/', 'home'], ['الحملات', '#/campaigns', 'kaaba'], ['المعتمرون', '#/pilgrims', 'list'], ['الرسائل', '#/messages', 'chat'], ['المزيد', '#/more', 'gear']];
     if (isStaff()) return [['الرئيسية', '#/', 'home'], ['الخريطة', '#/map', 'map'], ['الرسائل', '#/messages', 'chat'], ['الدليل', '#/guide', 'book'], ['المزيد', '#/more', 'gear']];
-    return [['الرئيسية', '#/', 'home'], ['المطوّف', '#/mutawwif', 'kaaba'], ['الصلاة', '#/prayer', 'clock'], ['الدليل', '#/guide', 'book'], ['المزيد', '#/more', 'user']];
+    return [['رحلتي', '#/', 'home'], ['العبادة', '#/worship', 'book'], ['المساعدة', '#/help', 'chat'], ['المزيد', '#/more', 'user']];
   }
   function baseOf(r) {
+    if (isPil()) {
+      if (['#/mutawwif', '#/prayer', '#/guide', '#/ahkam', '#/ziyarat', '#/prep', '#/exchange', '#/tasbeeh', '#/weather'].includes(r)) return '#/worship';
+      if (['#/ask', '#/emergency'].includes(r)) return '#/help';
+      if (['#/pay', '#/program', '#/card', '#/docs', '#/cert', '#/done', '#/gift'].includes(r)) return '#/';
+    }
     if (r.indexOf('#/campaign/') === 0) return '#/campaigns';
     if (r.indexOf('#/pilgrim/') === 0) return '#/pilgrims';
     if (['#/ahkam', '#/ziyarat', '#/prep', '#/exchange', '#/emergency', '#/tasbeeh', '#/weather'].indexOf(r) >= 0) return '#/guide';
@@ -345,7 +350,7 @@
   }
   function tabsHtml() {
     var r = route(), b = baseOf(r);
-    return '<nav class="tabbar" aria-label="التنقل">' + tabsDef().map(function (t) { var n = badgeCount(t[1]); return '<a href="' + t[1] + '" class="' + (t[1] === b || t[1] === r ? 'on' : '') + '">' + ico(t[2], 22) + '<span>' + t[0] + '</span>' + (n ? '<em>' + n + '</em>' : '') + '</a>'; }).join('') + '</nav>';
+    return '<nav class="tabbar" aria-label="التنقل">' + tabsDef().map(function (t) { var n = badgeCount(t[1]); return '<a href="' + t[1] + '" class="' + (t[1] === b || t[1] === r ? 'on' : '') + '"' + (t[1] === b || t[1] === r ? ' aria-current="page"' : '') + '>' + ico(t[2], 22) + '<span>' + t[0] + '</span>' + (n ? '<em>' + n + '</em>' : '') + '</a>'; }).join('') + '</nav>';
   }
   function topHtml() {
     var u = me();
@@ -353,7 +358,7 @@
       btn(ico(document.body.classList.contains('t-dark') ? 'sun' : 'moon', 20), 'theme', {}, 'icon') +
       '<a class="who" href="#/profile">' + avatar(u) + '<span><b>' + h(u.name) + '</b><small>' + h(isMgr() ? 'المدير' : isStaff() ? (u.title || 'الفريق') : 'معتمر') + '</small></span></a></div>';
   }
-  function shell(content) { return '<div class="shell"><aside class="nav">' + navHtml() + '</aside><main>' + topHtml() + content + '</main>' + tabsHtml() + '</div>'; }
+  function shell(content) { return '<div class="shell' + (isPil() ? ' shell-pilgrim' : '') + '"><aside class="nav">' + navHtml() + '</aside><main>' + topHtml() + content + '</main>' + tabsHtml() + '</div>'; }
 
   /* ---------- الدخول ---------- */
   var fstate = { open: false, sent: false, phone: '', wa: '' };
@@ -1141,32 +1146,84 @@
 
   /* ---------- بوابة المعتمر ---------- */
   function vPortal() {
-    var u = me(), p = curPil(), d = longDates();
-    var out = '<div class="hero pil"><div><span>' + greet() + '</span><h1>' + h(sir(Object.assign({}, u, { name: u.name }))) + '</h1><p>' + h(d[0]) + '<br>' + h(d[1]) + '</p></div><img src="' + MARK_W + '" alt="" class="hero-mark"></div>';
-    if (!p) {
-      return pushBanner() + out + card('<h2>لا توجد لديك رحلة حالية</h2><p class="mu">اختر رحلة واحجز لنفسك أو لعائلتك، أو أهدِ عمرة لمن تحب.</p><div class="acts">' + link('احجز رحلة', '#/book', 'pri big') + btn('أهدِ عمرة', 'giftStart', {}, 'gold big') + '</div>');
+    var u = me(), p = curPil();
+    if (!p) return head('رحلتي', 'أهلاً، ' + h(u.name)) +
+      card('<h2>لا توجد رحلة حالية</h2><div class="acts">' +
+        link('احجز رحلة', '#/book', 'pri') + btn('أهدِ عمرة', 'giftStart', {}, '') + '</div>', 'journey-card');
+
+    var c = byId('campaigns', p.campaign_id) || {}, du = pilDue(p);
+    var upcoming = ['request', 'approved', 'visa'].includes(p.status);
+    var status = { request: 'الطلب قيد المراجعة', approved: 'الحجز مقبول', visa: 'صدرت التأشيرة', travel: 'الرحلة جارية', done: 'أتممت العمرة' }[p.status];
+    var leavesToday = c.start_date && daysTo(c.start_date) === 0 && upcoming;
+    var departure = [c.start_date && dateAr(c.start_date, true), c.depart_time].filter(Boolean).map(h).join(' · ');
+    var assignment = [(p.bus ? 'باص ' + p.bus : ''), (p.seat ? 'مقعد ' + p.seat : '')].filter(Boolean).join(' · ');
+    var overview = '<section class="journey-overview" aria-label="ملخّص الرحلة"><span class="journey-status">' + h(status || 'حالة الحجز') + '</span>' +
+      '<h2>' + h(c.name || 'رحلة العمرة') + '</h2>' +
+      (departure || c.depart_place ? '<p><b>' + (leavesToday ? 'الانطلاق اليوم' : 'الانطلاق') + '</b>' + (departure ? '<span>' + departure + '</span>' : '') + (c.depart_place ? '<span>' + h(c.depart_place) + '</span>' : '') + '</p>' : '') +
+      (assignment || p.room ? '<p class="journey-assignment">' + [assignment, p.room ? 'غرفة ' + p.room : ''].filter(Boolean).map(h).join(' · ') + '</p>' : '') +
+      '</section>';
+    var tasks = [];
+    if (upcoming && p.status !== 'visa' && !(p.docs && p.docs.visa)) {
+      if (p.passport_exp && passOk(p, c) === false) {
+        tasks.push(['حدّث بيانات جواز السفر', 'الجواز لا يحقق مدة الصلاحية المطلوبة للرحلة.', '#/docs']);
+      } else {
+        var missing = ['passport', 'photo'].filter(function (key) { return !(p.docs && p.docs[key]); });
+        if (missing.length) tasks.push(['أكمل وثائقك', 'المطلوب: ' + missing.map(function (key) { return DOC_KINDS[key]; }).join(' و'), '#/docs']);
+      }
     }
-    var c = byId('campaigns', p.campaign_id) || {}, du = pilDue(p), dd = c.start_date ? daysTo(c.start_date) : null, si = STATUS_ORDER.indexOf(p.status);
-    out += famChips();
-    if (p.user_id !== u.id) out += '<div class="alert gold">' + (p.gift_from ? 'حجزت هذه العمرة إهداءً لـ <b>' + h(p.name) + '</b>. ' + link('صمّم بطاقة الإهداء', '#/gift', 'sm gold') : 'هذا ملف <b>' + h(p.name) + '</b> من عائلتك، وتتابع وثائقه ودفعاته من هنا.') + '</div>';
-    out += '<div class="stepper">' + ['الطلب', 'القبول', 'التأشيرة', 'السفر', 'تمت العمرة'].map(function (t, i) { return '<div class="' + (i < si ? 'ok' : i === si ? 'cur' : '') + '"><i>' + (i < si ? ico('ok', 14) : i + 1) + '</i><span>' + t + '</span></div>'; }).join('') + '</div>';
-    var miss = ['photo', 'passport'].filter(function (k) { return !(p.docs && p.docs[k]); });
-    var alerts = [];
-    if (p.status === 'cancelled') alerts.push('<div class="alert sos">هذا الطلب ملغى. تواصل مع الإدارة.</div>');
-    if (miss.length) alerts.push('<a class="alert" href="#/docs">ارفع ' + miss.map(function (k) { return DOC_KINDS[k]; }).join(' و') + ' لاستكمال إجراءات التأشيرة</a>');
-    if (du.depLeft > 0 && p.status !== 'cancelled') alerts.push('<a class="alert gold" href="#/pay">الدفعة الأولى لتثبيت الحجز: ' + usd(du.depLeft) + ' · ادفع الآن</a>');
-    else if (du.left > 0 && p.status !== 'cancelled') alerts.push('<a class="alert gold" href="#/pay">يتبقى عليك ' + usd(du.left) + (du.pending ? ' (لديك دفعة ' + usd(du.pending) + ' بانتظار التأكيد)' : '') + ' · ادفع الآن</a>');
-    if (p.passport_exp && passOk(p, c) === false) alerts.push('<div class="alert sos">ينتهي جوازك قبل مرور 6 أشهر على السفر، ويجب تجديده.</div>');
-    if (p.docs && p.docs.visa) alerts.push('<button type="button" class="alert good" data-act="viewDoc" data-id="' + h(p.id) + '" data-k="visa">صدرت تأشيرتك · اضغط لعرضها</button>');
-    if (alerts.length) out += '<div class="alerts">' + alerts.join('') + '</div>';
-    var last = db.messages.filter(function (m) { return (m.kind === 'broadcast' && m.campaign_id === c.id) || (m.kind === 'direct' && m.to_id === u.id); }).slice(-3).reverse();
-    if (last.length) out += '<div class="news">' + last.map(function (m) { return '<div class="nitem"><span>' + h(m.body) + '</span><small>' + ago(m._at) + '</small></div>'; }).join('') + '</div>';
-    out += card('<div class="nc"><div><span class="mu">رحلتك</span><h2>' + h(c.name || '') + '</h2><p>' + (c.start_date ? h(dayName(c.start_date)) + ' ' + h(dateAr(c.start_date, true)) + ' · ' + h(hijri(c.start_date)) : '') + '</p><p>' + (c.depart_place ? 'الانطلاق من ' + h(c.depart_place) : '') + (c.depart_time ? ' · الساعة ' + h(c.depart_time) : '') + '</p></div>' + (dd != null && dd >= 0 ? '<div class="count"><b>' + (dd === 0 ? 'اليوم' : dd) + '</b><span>' + (dd === 0 ? 'الانطلاق' : 'يوم للانطلاق') + '</span></div>' : '') + '</div>' +
-      '<div class="hotels">' + hotelRow('makkah', c.makkah_hotel, c.makkah_nights, (c.hotel_info || {}).makkah) + hotelRow('madinah', c.madinah_hotel, c.madinah_nights, (c.hotel_info || {}).madinah) + '</div><div class="info-grid">' + (p.room_type ? infoBox('الغرفة', ROOMS[p.room_type]) : '') + infoBox('الباص والمقعد', (p.bus ? 'باص ' + p.bus : '—') + (p.seat ? ' · مقعد ' + p.seat : '')) + infoBox('مشرف الباص', (p.bus_sup || c.sup_name || '—') + (p.driver ? ' · السائق ' + p.driver : '')) + (p.room ? infoBox('رقم الغرفة', p.room) : '') + '</div><details class="tmore"><summary>تفاصيل الرحلة والشروط' + CHEV + '</summary>' + tripDetails(c, { room: p.room_type }) + '</details>' + supContact(c), 'feature');
-    out += '<div class="tools">' + [['المطوّف', '#/mutawwif', 'kaaba'], ['مواقيت الصلاة', '#/prayer', 'clock'], ['حسابي والدفع', '#/pay', 'money'], ['برنامج الرحلة', '#/program', 'list'], ['وثائقي', '#/docs', 'card'], ['اسأل الشيخ', '#/ask', 'chat'], ['أحكام العمرة', '#/ahkam', 'book'], ['بطاقة المعتمر', '#/card', 'user'], ['الطوارئ', '#/emergency', 'sos'], ['الطقس والخرائط', '#/weather', 'map'], ['احجز رحلة', '#/book', 'kaaba']].concat(famPilgrims().some(function (x) { return x.user_id !== u.id; }) ? [['بطاقة الإهداء', '#/gift', 'star']] : []).concat(p.status === 'done' ? [['شهادة العمرة', '#/cert', 'cert'], ['تمّت عمرتي', '#/done', 'star']] : []).map(function (t) { return '<a href="' + t[1] + '">' + ico(t[2], 28) + '<span>' + t[0] + '</span></a>'; }).join('') + '</div>';
-    out += card('<div class="locbox"><div><h2>شارك موقعي</h2><p class="mu">' + (locWatch ? 'موقعك يُشارك مع الإدارة والمشرف' : 'إذا ضللت الطريق أو أردت أن يجدك المشرف') + '</p></div>' + btn(locWatch ? 'إيقاف المشاركة' : 'شارك موقعي', 'locToggle', {}, locWatch ? '' : 'pri') + '</div>' + '<button type="button" class="sosbtn" data-act="sos">' + ico('sos', 22) + ' نداء طوارئ للمشرف</button>');
-    return pushBanner() + out;
+    if (du.left > 0) {
+      var remaining = upcoming && du.depLeft > 0 ? du.depLeft : du.left;
+      var pending = du.pending > 0;
+      tasks.push([pending ? 'راجع حالة الدفعة' : 'راجع الدفعات', (pending ? 'دفعة بانتظار التأكيد: ' : 'المبلغ المتبقي: ') + usd(pending ? du.pending : remaining), '#/pay']);
+    }
+    var tasksHtml = tasks.length ? '<section class="journey-section"><h2>المطلوب منك</h2><ul class="journey-list">' + tasks.map(function (task) {
+      return '<li><a href="' + task[2] + '"><span><b>' + task[0] + '</b><small>' + task[1] + '</small></span>' + CHEV + '</a></li>';
+    }).join('') + '</ul></section>' : '';
+    var seen = new Set();
+    var messages = db.messages.slice().reverse().filter(function (m) {
+      if (!((m.kind === 'broadcast' && m.campaign_id === c.id) || (m.kind === 'direct' && m.to_id === u.id))) return false;
+      var key = String(m.body || '').trim().replace(/\s+/g, ' ');
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    var updates = messages.length ? '<details class="journey-card journey-updates"><summary>آخر التحديثات' + CHEV + '</summary><ul class="journey-list">' +
+      messages.map(function (m) { return '<li><span>' + h(m.body) + '<small>' + ago(m._at) + '</small></span></li>'; }).join('') + '</ul></details>' : '';
+    var shortcuts = [
+      ['برنامج الرحلة', '#/program', 'list'], ['بطاقة المعتمر', '#/card', 'card'], ['وثائقي', '#/docs', 'card'], ['حسابي والدفع', '#/pay', 'money']
+    ];
+    if (p.gift_from) shortcuts.push(['بطاقة الإهداء', '#/gift', 'star']);
+    if (p.status === 'done') shortcuts.unshift(['شهادة العمرة', '#/cert', 'cert'], ['بطاقة تمّت عمرتي', '#/done', 'star']);
+    var details = (c.makkah_hotel || c.madinah_hotel || c.id) ? '<details class="journey-card"><summary>الفنادق وتفاصيل الرحلة' + CHEV + '</summary>' +
+      '<div class="info-grid">' + (p.room_type ? infoBox('نوع الغرفة', ROOMS[p.room_type] || p.room_type) : '') +
+      (p.bus_sup || c.sup_name ? infoBox('شيخ العمرة', p.bus_sup || c.sup_name) : '') + (p.driver ? infoBox('السائق', p.driver) : '') + '</div>' +
+      tripDetails(c, { room: p.room_type }) + '</details>' : '';
+    return '<div class="journey">' + head('رحلتي', h(p.name)) + famChips() + overview + tasksHtml +
+      '<section class="journey-section"><h2>خدمات الرحلة</h2>' + journeyLinks(shortcuts) + '</section>' + details + updates + '</div>';
   }
+
+  function journeyLinks(items) {
+    return '<ul class="journey-list">' + items.map(function (item) {
+      return '<li><a href="' + item[1] + '">' + ico(item[2], 20) + '<span>' + item[0] + '</span>' + CHEV + '</a></li>';
+    }).join('') + '</ul>';
+  }
+
+  function vWorship() {
+    return head('العبادة', '') + journeyLinks([
+      ['المطوّف', '#/mutawwif', 'kaaba'], ['مواقيت الصلاة', '#/prayer', 'clock'],
+      ['أحكام العمرة', '#/ahkam', 'book'], ['المسبحة', '#/tasbeeh', 'beads'], ['الدليل والأدوات', '#/guide', 'book']
+    ]);
+  }
+
+  function vPilgrimHelp() {
+    var p = curPil(), c = p && byId('campaigns', p.campaign_id) || {};
+    return head('المساعدة', '') + card('<h2>تواصل مع شيخ العمرة</h2>' + supContact(c) +
+      '<div class="acts">' + link('اسأل الشيخ', '#/ask', '') + link('أرقام الطوارئ', '#/emergency', '') + '</div>', 'journey-card') +
+      (p ? card('<h2>موقعي</h2><p>' + (locWatch ? 'موقعك يُشارك مع الإدارة والمشرف.' : 'شارك موقعك ليقدر المشرف يساعدك إذا ضللت الطريق.') + '</p>' +
+      '<div class="acts">' + btn(locWatch ? 'إيقاف المشاركة' : 'شارك موقعي', 'locToggle', {}, '') + '</div>' +
+      '<button type="button" class="sosbtn" data-act="sos">' + ico('sos', 22) + ' نداء طوارئ للمشرف</button>', 'journey-card') : '');
+  }
+
   function supContact(c) {
     var o = office(), sy = c.sup_sy || o.phone_sy, sa = c.sup_sa || o.phone_sa;
     if (!sy && !sa) return '';
@@ -1760,7 +1817,7 @@
         var S = { '#/messages': vMessages, '#/map': vMap };
         if (S[r]) html = S[r](); else if (r.indexOf('#/campaign/') === 0) html = vCampaign(r.slice(11)); else if (r.indexOf('#/pilgrim/') === 0) html = vPilgrim(r.slice(10)); else html = vStaffHome();
       } else {
-        var P = { '#/pay': vPay, '#/program': vProgram, '#/ask': vAsk, '#/card': vCard, '#/docs': vDocs, '#/cert': vCert, '#/book': function () { return vBookPage(false); }, '#/gift': vGift, '#/done': vDoneCard };
+        var P = { '#/worship': vWorship, '#/help': vPilgrimHelp, '#/pay': vPay, '#/program': vProgram, '#/ask': vAsk, '#/card': vCard, '#/docs': vDocs, '#/cert': vCert, '#/book': function () { return vBookPage(false); }, '#/gift': vGift, '#/done': vDoneCard };
         html = P[r] ? P[r]() : vPortal();
       }
       if (!full) html = shell(html);

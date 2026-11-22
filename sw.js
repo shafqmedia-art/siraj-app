@@ -1,6 +1,6 @@
 // يحفظ ملفات الواجهة ليفتح التطبيق بسرعة وبدون إنترنت (المطوّف والأدعية والمواقيت بتشتغل بدون نت).
-var CACHE = 'siraj-shell-v7';
-var FILES = ['./', 'index.html', 'offline.html', 'styles.css?v=6', 'app.js?v=7', 'seating.js', 'server.js?v=4', 'config.js?v=4', 'content.js?v=4', 'prayer.js?v=4', 'intro.js?v=4', 'manifest.webmanifest', 'guide.pdf', 'files/adhkar.pdf', 'files/checklist.pdf',
+var CACHE = 'siraj-shell-v8';
+var FILES = ['./', 'index.html', 'offline.html', 'styles.css?v=8', 'app.js?v=8', 'seating.js', 'server.js?v=4', 'config.js?v=4', 'content.js?v=4', 'prayer.js?v=4', 'intro.js?v=4', 'manifest.webmanifest', 'guide.pdf', 'files/adhkar.pdf', 'files/checklist.pdf',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-180.png', 'icons/logo-green.png', 'icons/logo-white.png', 'icons/mark-green.png', 'icons/mark-white.png', 'icons/shamcash-logo.png', 'icons/shamcash-qr.jpg', 'icons/badge-96.png',
   'fonts/Cairo-Variable.ttf'];
 self.addEventListener('install', function (e) { e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(FILES); }).then(function () { return self.skipWaiting(); })); });

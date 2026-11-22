@@ -570,3 +570,39 @@ html[dir=ltr] .langbtn{left:auto;right:14px}
 .tabs button.on,.seg button.on,.seg .btn.on{outline:1px solid var(--tx);outline-offset:-1px}
 .stepper .cur i,.msteps .cur i{color:var(--tx)}
 .trip-p b,.rooms b,.ttype,.pwrap h1,.finder>summary{color:var(--tx)}
+
+/* Pilgrim portal */
+.journey{display:grid;gap:18px;min-width:0}
+.journey .head{margin:0}
+.journey .head p{margin-top:2px}
+.journey-overview{display:grid;gap:8px;padding:16px 18px;border-radius:10px;background:var(--green);color:var(--cream);border:1px solid var(--ln);overflow-wrap:anywhere}
+.journey-overview h2{font-size:22px;line-height:1.45}
+.journey-status{justify-self:start;border-inline-start:3px solid var(--gold);padding-inline-start:8px;font-size:14px;font-weight:700}
+.journey-overview p{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;margin:0}
+.journey-overview .journey-assignment{padding-top:6px;border-top:1px solid rgba(247,243,233,.4);font-weight:700}
+.journey-section{display:grid;gap:8px}
+.journey-section h2,.journey-card h2{font-size:18px}
+.journey-card{padding:12px 16px;border:1px solid var(--ln);border-radius:10px;min-width:0;overflow-wrap:anywhere}
+.journey-card summary{list-style:none;display:flex;min-height:44px;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;font-weight:700}
+.journey-card summary::-webkit-details-marker{display:none}
+.journey-card[open]>summary .chev{transform:rotate(180deg)}
+.journey-card .sosbtn{margin-top:12px}
+.journey-list{padding:0;margin:0;list-style:none;border-block:1px solid var(--ln)}
+.journey-card .journey-list{border-bottom:0}
+.journey-list li+li{border-top:1px solid var(--ln)}
+.journey-list a,.journey-updates li>span{min-height:48px;display:flex;align-items:center;gap:10px;padding:8px 4px;text-decoration:none;color:var(--tx);overflow-wrap:anywhere}
+.journey-list a>span,.journey-updates li>span{min-width:0;flex:1}
+.journey-list small{display:block;font-size:13px}
+.journey-list a>.chev{margin-inline-start:auto;transform:rotate(90deg);flex:none}
+.journey-list a>.ico{flex:none}
+.journey-updates li>span{display:block}
+.journey-updates small{margin-block-start:4px}
+@media (max-width:860px){
+  .shell-pilgrim::before{content:'';position:fixed;z-index:21;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);pointer-events:none}
+  .shell-pilgrim main{padding-block-start:calc(10px + env(safe-area-inset-top,0px));padding-inline:14px}
+  .shell-pilgrim .tabbar a{min-width:0;line-height:1.4;text-align:center}
+  .shell-pilgrim .tabbar a.on{font-weight:700}
+  .shell-pilgrim .tabbar a.on::before{content:'';position:absolute;top:0;inset-inline:32%;border-top:3px solid var(--gold);border-radius:3px}
+  .journey{gap:14px}
+  .journey-overview{padding:13px 14px}
+}
